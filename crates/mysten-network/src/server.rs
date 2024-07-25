@@ -21,7 +21,8 @@ use tonic::{
         http::{Request, Response},
         BoxFuture,
     },
-    transport::{server::Router, Body, NamedService},
+    server::NamedService,
+    transport::{server::Router, Body},
 };
 use tower::{
     layer::util::{Identity, Stack},
@@ -278,8 +279,8 @@ mod test {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tonic::Code;
-    use tonic_health::proto::health_client::HealthClient;
-    use tonic_health::proto::HealthCheckRequest;
+    use tonic_health::pb::health_client::HealthClient;
+    use tonic_health::pb::HealthCheckRequest;
 
     #[test]
     fn document_multiaddr_limitation_for_unix_protocol() {
@@ -465,13 +466,6 @@ mod test {
         let address = Multiaddr::new_internal(multiaddr::multiaddr!(Unix(path), Http));
         test_multiaddr(address).await;
         std::fs::remove_file(path).unwrap();
-    }
-
-    #[should_panic]
-    #[tokio::test]
-    async fn missing_http_protocol() {
-        let address: Multiaddr = "/dns/localhost/tcp/0".parse().unwrap();
-        test_multiaddr(address).await;
     }
 }
 

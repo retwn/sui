@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { isSuiNSName, useRpcClient, useSuiNSEnabled } from '@mysten/core';
-import { type SuiClient } from '@mysten/sui.js/client';
-import { isValidSuiAddress } from '@mysten/sui.js/utils';
+import { useSuiNSEnabled } from '@mysten/core';
+import { useSuiClient } from '@mysten/dapp-kit';
+import { type SuiClient } from '@mysten/sui/client';
+import { isValidSuiAddress, isValidSuiNSName } from '@mysten/sui/utils';
 import { useMemo } from 'react';
 import * as Yup from 'yup';
 
@@ -15,7 +16,7 @@ export function createSuiAddressValidation(client: SuiClient, suiNSEnabled: bool
 		.trim()
 		.required()
 		.test('is-sui-address', 'Invalid address. Please check again.', async (value) => {
-			if (suiNSEnabled && isSuiNSName(value)) {
+			if (suiNSEnabled && isValidSuiNSName(value)) {
 				if (resolveCache.has(value)) {
 					return resolveCache.get(value)!;
 				}
@@ -35,7 +36,7 @@ export function createSuiAddressValidation(client: SuiClient, suiNSEnabled: bool
 }
 
 export function useSuiAddressValidation() {
-	const client = useRpcClient();
+	const client = useSuiClient();
 	const suiNSEnabled = useSuiNSEnabled();
 
 	return useMemo(() => {

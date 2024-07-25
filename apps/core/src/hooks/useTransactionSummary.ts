@@ -3,29 +3,27 @@
 import {
 	DryRunTransactionBlockResponse,
 	type SuiTransactionBlockResponse,
-	getExecutionStatusType,
-	getTransactionDigest,
-	getTransactionSender,
-} from '@mysten/sui.js';
-import { is } from '@mysten/sui.js/utils';
+} from '@mysten/sui/client';
 import { useMemo } from 'react';
 
 import { getBalanceChangeSummary } from '../utils/transaction/getBalanceChangeSummary';
-import {
-	SuiObjectChangeWithDisplay,
-	getObjectChangeSummary,
-} from '../utils/transaction/getObjectChangeSummary';
-import { getLabel } from '../utils/transaction/getLabel';
 import { getGasSummary } from '../utils/transaction/getGasSummary';
-import { useMultiGetObjects } from './useMultiGetObjects';
+import { getLabel } from '../utils/transaction/getLabel';
+import {
+	getObjectChangeSummary,
+	SuiObjectChangeWithDisplay,
+} from '../utils/transaction/getObjectChangeSummary';
 import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
+import { useMultiGetObjects } from './useMultiGetObjects';
 
 export function useTransactionSummary({
 	transaction,
 	currentAddress,
+	recognizedPackagesList,
 }: {
 	transaction?: SuiTransactionBlockResponse | DryRunTransactionBlockResponse;
 	currentAddress?: string;
+	recognizedPackagesList: string[];
 }) {
 	const { objectChanges } = transaction ?? {};
 
@@ -48,28 +46,33 @@ export function useTransactionSummary({
 	const summary = useMemo(() => {
 		if (!transaction) return null;
 		const objectSummary = getObjectChangeSummary(objectChangesWithDisplay);
-		const balanceChangeSummary = getBalanceChangeSummary(transaction);
+		const balanceChangeSummary = getBalanceChangeSummary(transaction, recognizedPackagesList);
 		const gas = getGasSummary(transaction);
 
-		if (is(transaction, DryRunTransactionBlockResponse)) {
+		if ('digest' in transaction) {
+			// Non-dry-run transaction:
 			return {
 				gas,
-				objectSummary,
+				sender: transaction.transaction?.data.sender,
 				balanceChanges: balanceChangeSummary,
-			};
-		} else {
-			return {
-				gas,
-				sender: getTransactionSender(transaction),
-				balanceChanges: balanceChangeSummary,
-				digest: getTransactionDigest(transaction),
+				digest: transaction.digest,
 				label: getLabel(transaction, currentAddress),
 				objectSummary,
-				status: getExecutionStatusType(transaction),
+				status: transaction.effects?.status.status,
 				timestamp: transaction.timestampMs,
+				upgradedSystemPackages: transaction.effects?.mutated?.filter(
+					({ owner }) => owner === 'Immutable',
+				),
+			};
+		} else {
+			// Dry run transaction:
+			return {
+				gas,
+				objectSummary,
+				balanceChanges: balanceChangeSummary,
 			};
 		}
-	}, [transaction, currentAddress, objectChangesWithDisplay]);
+	}, [transaction, objectChangesWithDisplay, recognizedPackagesList, currentAddress]);
 
 	return summary;
 }

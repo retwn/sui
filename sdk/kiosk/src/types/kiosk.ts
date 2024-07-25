@@ -1,9 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ObjectDigest, ObjectType, PaginatedObjectsResponse } from '@mysten/sui.js';
-import { TransactionArgument } from '@mysten/sui.js/transactions';
-import { ObjectArgument } from '.';
+import type {
+	PaginatedObjectsResponse,
+	SuiObjectData,
+	SuiObjectDataOptions,
+} from '@mysten/sui/client';
+import type { TransactionArgument } from '@mysten/sui/transactions';
+
+import type { ObjectArgument } from './index.js';
 
 /** The Kiosk module. */
 export const KIOSK_MODULE = '0x2::kiosk';
@@ -93,12 +98,35 @@ export type KioskItem = {
 	/** The ID of the Item */
 	objectId: string;
 	/** The type of the Item */
-	type: ObjectType;
+	type: string;
 	/** Whether the item is Locked (there must be a `Lock` Dynamic Field) */
 	isLocked: boolean;
 	/** Optional listing */
 	listing?: KioskListing;
+	/** The ID of the kiosk the item is placed in */
+	kioskId: string;
+	/** Optional Kiosk Data */
+	data?: SuiObjectData;
 };
+
+/** The overview type returned from `getKiosk` */
+export type KioskExtensionOverview = {
+	/** The ID of the extension's DF */
+	objectId: string;
+	/** The inner type of the Extension */
+	type: string;
+};
+/**
+ * Hold the KioskExtension data
+ */
+export type KioskExtension = KioskExtensionOverview & {
+	/** These fields are only there if we have `withExtensions` flag */
+	isEnabled: boolean;
+	permissions: string;
+	storageId: string;
+	storageSize: number;
+};
+
 /**
  * Aggregated data from the Kiosk.
  */
@@ -107,18 +135,24 @@ export type KioskData = {
 	itemIds: string[];
 	listingIds: string[];
 	kiosk?: Kiosk;
-	extensions: any[]; // type will be defined on later versions of the SDK.
+	extensions: KioskExtensionOverview[]; // type will be defined on later versions of the SDK.
 };
 
 export type PagedKioskData = {
 	data: KioskData;
-	nextCursor: string | null;
+	nextCursor: string | null | undefined;
 	hasNextPage: boolean;
 };
 
 export type FetchKioskOptions = {
+	/** Include the base kiosk object, which includes the profits, the owner and the base fields. */
 	withKioskFields?: boolean;
+	/** Include the listing prices. */
 	withListingPrices?: boolean;
+	/** Include the objects for the Items in the kiosk. Defaults to `display` only. */
+	withObjects?: boolean;
+	/** Pass the data options for the objects, when fetching, in case you want to query other details. */
+	objectOptions?: SuiObjectDataOptions;
 };
 
 export type OwnedKiosks = {
@@ -127,8 +161,18 @@ export type OwnedKiosks = {
 } & Omit<PaginatedObjectsResponse, 'data'>;
 
 export type KioskOwnerCap = {
+	isPersonal?: boolean;
 	objectId: string;
 	kioskId: string;
-	digest: ObjectDigest;
+	digest: string;
 	version: string;
 };
+
+export type PurchaseOptions = {
+	extraArgs?: Record<string, any>;
+};
+
+export type ItemId = { itemType: string; itemId: string };
+export type ItemReference = { itemType: string; item: ObjectArgument };
+export type ItemValue = { itemType: string; item: TransactionArgument };
+export type Price = { price: string | bigint };

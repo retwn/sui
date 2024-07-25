@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromB64 } from '@mysten/bcs';
-import { PublicKey, bytesEqual } from '../../cryptography/publickey.js';
-import type { PublicKeyInitData } from '../../cryptography/publickey.js';
-import type { SerializedSignature } from '../../cryptography/signature.js';
-import {
-	SIGNATURE_SCHEME_TO_FLAG,
-	parseSerializedSignature,
-} from '../../cryptography/signature.js';
-import { sha256 } from '@noble/hashes/sha256';
 import { secp256r1 } from '@noble/curves/p256';
+import { sha256 } from '@noble/hashes/sha256';
+
+import { bytesEqual, PublicKey } from '../../cryptography/publickey.js';
+import type { PublicKeyInitData } from '../../cryptography/publickey.js';
+import { SIGNATURE_SCHEME_TO_FLAG } from '../../cryptography/signature-scheme.js';
+import { parseSerializedSignature } from '../../cryptography/signature.js';
 
 const SECP256R1_PUBLIC_KEY_SIZE = 33;
 
@@ -67,7 +65,7 @@ export class Secp256r1PublicKey extends PublicKey {
 	/**
 	 * Verifies that the signature is valid for for the provided message
 	 */
-	async verify(message: Uint8Array, signature: Uint8Array | SerializedSignature): Promise<boolean> {
+	async verify(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
 		let bytes;
 		if (typeof signature === 'string') {
 			const parsed = parseSerializedSignature(signature);

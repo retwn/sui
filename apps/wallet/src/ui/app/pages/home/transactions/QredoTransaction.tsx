@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate, useOnScreen } from '@mysten/core';
-import { fromB64 } from '@mysten/sui.js';
-import { IntentScope } from '@mysten/sui.js/cryptography';
-import { useMemo, useRef } from 'react';
-
 import { toUtf8OrB64 } from '_src/shared/utils';
 import LoadingIndicator from '_src/ui/app/components/loading/LoadingIndicator';
 import { TxnIcon } from '_src/ui/app/components/transactions-card/TxnIcon';
 import { useGetQredoTransaction } from '_src/ui/app/hooks/useGetQredoTransaction';
 import { Text } from '_src/ui/app/shared/text';
+import { formatDate, useOnScreen } from '@mysten/core';
+import { bcs } from '@mysten/sui/bcs';
+import { fromB64 } from '@mysten/sui/utils';
+import { useMemo, useRef } from 'react';
+
 export type QredoTransactionProps = {
 	qredoID?: string;
 	qredoTransactionID?: string;
@@ -19,7 +19,7 @@ export type QredoTransactionProps = {
 export function QredoTransaction({ qredoID, qredoTransactionID }: QredoTransactionProps) {
 	const transactionElementRef = useRef<HTMLDivElement>(null);
 	const { isIntersecting } = useOnScreen(transactionElementRef);
-	const { data, isLoading, error } = useGetQredoTransaction({
+	const { data, isPending, error } = useGetQredoTransaction({
 		qredoID,
 		qredoTransactionID,
 		forceDisabled: !isIntersecting,
@@ -30,8 +30,11 @@ export function QredoTransaction({ qredoID, qredoTransactionID }: QredoTransacti
 		}
 		return null;
 	}, [data?.MessageWithIntent]);
-	const scope = messageWithIntent?.[0];
-	const isSignMessage = scope === IntentScope.PersonalMessage;
+
+	const isSignMessage = messageWithIntent
+		? bcs.IntentScope.parse(messageWithIntent).PersonalMessage
+		: false;
+
 	const transactionBytes = useMemo(() => messageWithIntent?.slice(3) || null, [messageWithIntent]);
 	const messageToSign =
 		useMemo(
@@ -43,11 +46,11 @@ export function QredoTransaction({ qredoID, qredoTransactionID }: QredoTransacti
 			<div>
 				<TxnIcon
 					txnFailed={!!error}
-					variant={isLoading ? 'Loading' : isSignMessage ? 'PersonalMessage' : 'Send'}
+					variant={isPending ? 'Loading' : isSignMessage ? 'PersonalMessage' : 'Send'}
 				/>
 			</div>
 			<div className="flex flex-col gap-1 overflow-hidden">
-				{isLoading ? (
+				{isPending ? (
 					<>
 						<div className="bg-sui-lightest h-3 w-20 rounded" />
 						<div className="bg-sui-lightest h-3 w-16 rounded" />

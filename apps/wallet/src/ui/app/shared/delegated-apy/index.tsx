@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { roundFloat, useGetValidatorsApy, useGetSystemState } from '@mysten/core';
-import { useMemo } from 'react';
-
 import { Text } from '_app/shared/text';
 import { IconTooltip } from '_app/shared/tooltip';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { roundFloat, useGetValidatorsApy } from '@mysten/core';
+import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useMemo } from 'react';
 
 const APY_DECIMALS = 3;
 
@@ -15,7 +15,7 @@ type DelegatedAPYProps = {
 };
 
 export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
-	const { data, isLoading } = useGetSystemState();
+	const { data, isPending } = useSuiClientQuery('getLatestSuiSystemState');
 	const { data: rollingAverageApys } = useGetValidatorsApy();
 
 	const averageNetworkAPY = useMemo(() => {
@@ -32,7 +32,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 		return roundFloat(averageAPY || 0, APY_DECIMALS);
 	}, [data, rollingAverageApys, stakedValidators]);
 
-	if (isLoading) {
+	if (isPending) {
 		return (
 			<div className="p-2 w-full flex justify-center items-center h-full">
 				<LoadingIndicator />

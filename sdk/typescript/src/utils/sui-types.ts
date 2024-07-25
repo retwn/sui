@@ -51,7 +51,7 @@ export function parseStructTag(type: string): StructTag {
 	const typeParams = rest.includes('<')
 		? splitGenericParameters(rest.slice(rest.indexOf('<') + 1, rest.lastIndexOf('>'))).map(
 				(typeParam) => parseTypeTag(typeParam.trim()),
-		  )
+			)
 		: [];
 
 	return {
@@ -67,7 +67,7 @@ export function normalizeStructTag(type: string | StructTag): string {
 		typeof type === 'string' ? parseStructTag(type) : type;
 
 	const formattedTypeParams =
-		typeParams.length > 0
+		typeParams?.length > 0
 			? `<${typeParams
 					.map((typeParam) =>
 						typeof typeParam === 'string' ? typeParam : normalizeStructTag(typeParam),

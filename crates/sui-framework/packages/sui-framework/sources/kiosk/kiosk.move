@@ -1,41 +1,88 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Kiosk is a primitive for building open, zero-fee trading platforms
-/// with a high degree of customization over transfer policies.
-
-/// The system has 3 main audiences:
+/// Kiosk is a primitive for building safe, decentralized and trustless trading
+/// experiences. It allows storing and trading any types of assets as long as
+/// the creator of these assets implements a `TransferPolicy` for them.
 ///
-/// 1. Creators: for a type to be tradable in the Kiosk ecosystem,
-/// creator (publisher) of the type needs to issue a `TransferPolicyCap`
-/// which gives them a power to enforce any constraint on trades by
-/// either using one of the pre-built primitives (see `sui::royalty`)
-/// or by implementing a custom policy. The latter requires additional
-/// support for discoverability in the ecosystem and should be performed
-/// within the scope of an Application or some platform.
+/// ### Principles and philosophy:
 ///
-/// - A type can not be traded in the Kiosk unless there's a policy for it.
-/// - 0-royalty policy is just as easy as "freezing" the `AllowTransferCap`
-///   making it available for everyone to authorize deals "for free"
+/// - Kiosk provides guarantees of "true ownership"; - just like single owner
+/// objects, assets stored in the Kiosk can only be managed by the Kiosk owner.
+/// Only the owner can `place`, `take`, `list`, perform any other actions on
+/// assets in the Kiosk.
 ///
-/// 2. Traders: anyone can create a Kiosk and depending on whether it's
-/// a shared object or some shared-wrapper the owner can trade any type
-/// that has issued `TransferPolicyCap` in a Kiosk. To do so, they need
-/// to make an offer, and any party can purchase the item for the amount of
-/// SUI set in the offer. The responsibility to follow the transfer policy
-/// set by the creator of the `T` is on the buyer.
+/// - Kiosk aims to be generic - allowing for a small set of default behaviors
+/// and not imposing any restrictions on how the assets can be traded. The only
+/// default scenario is a `list` + `purchase` flow; any other trading logic can
+/// be implemented on top using the `list_with_purchase_cap` (and a matching
+/// `purchase_with_cap`) flow.
 ///
-/// 3. Marketplaces: marketplaces can either watch for the offers made in
-/// personal Kiosks or even integrate the Kiosk primitive and build on top
-/// of it. In the custom logic scenario, the `TransferPolicyCap` can also
-/// be used to implement application-specific transfer rules.
+/// - For every transaction happening with a third party a `TransferRequest` is
+/// created - this way creators are fully in control of the trading experience.
 ///
+/// ### Asset states in the Kiosk:
+///
+/// - `placed` -  An asset is `place`d into the Kiosk and can be `take`n out by
+/// the Kiosk owner; it's freely tradable and modifiable via the `borrow_mut`
+/// and `borrow_val` functions.
+///
+/// - `locked` - Similar to `placed` except that `take` is disabled and the only
+/// way to move the asset out of the Kiosk is to `list` it or
+/// `list_with_purchase_cap` therefore performing a trade (issuing a
+/// `TransferRequest`). The check on the `lock` function makes sure that the
+/// `TransferPolicy` exists to not lock the item in a `Kiosk` forever.
+///
+/// - `listed` - A `place`d or a `lock`ed item can be `list`ed for a fixed price
+/// allowing anyone to `purchase` it from the Kiosk. While listed, an item can
+/// not be taken or modified. However, an immutable borrow via `borrow` call is
+/// still available. The `delist` function returns the asset to the previous
+/// state.
+///
+/// - `listed_exclusively` - An item is listed via the `list_with_purchase_cap`
+/// function (and a `PurchaseCap` is created). While listed this way, an item
+/// can not be `delist`-ed unless a `PurchaseCap` is returned. All actions
+/// available at this item state require a `PurchaseCap`:
+///
+/// 1. `purchase_with_cap` - to purchase the item for a price equal or higher
+/// than the `min_price` set in the `PurchaseCap`.
+/// 2. `return_purchase_cap` - to return the `PurchaseCap` and return the asset
+/// into the previous state.
+///
+/// When an item is listed exclusively it cannot be modified nor taken and
+/// losing a `PurchaseCap` would lock the item in the Kiosk forever. Therefore,
+/// it is recommended to only use `PurchaseCap` functionality in trusted
+/// applications and not use it for direct trading (eg sending to another
+/// account).
+///
+/// ### Using multiple Transfer Policies for different "tracks":
+///
+/// Every `purchase` or `purchase_with_purchase_cap` creates a `TransferRequest`
+/// hot potato which must be resolved in a matching `TransferPolicy` for the
+/// transaction to pass. While the default scenario implies that there should be
+/// a single `TransferPolicy<T>` for `T`; it is possible to have multiple, each
+/// one having its own set of rules.
+///
+/// ### Examples:
+///
+/// - I create one `TransferPolicy` with "Royalty Rule" for everyone
+/// - I create a special `TransferPolicy` for bearers of a "Club Membership"
+/// object so they don't have to pay anything
+/// - I create and wrap a `TransferPolicy` so that players of my game can
+/// transfer items between `Kiosk`s in game without any charge (and maybe not
+/// even paying the price with a 0 SUI PurchaseCap)
+///
+/// ```
+/// Kiosk -> (Item, TransferRequest)
+/// ... TransferRequest ------> Common Transfer Policy
+/// ... TransferRequest ------> In-game Wrapped Transfer Policy
+/// ... TransferRequest ------> Club Membership Transfer Policy
+/// ```
+///
+/// See `transfer_policy` module for more details on how they function.
 module sui::kiosk {
-    use std::option::{Self, Option};
-    use sui::object::{Self, UID, ID};
     use sui::dynamic_object_field as dof;
     use sui::dynamic_field as df;
-    use sui::tx_context::{TxContext, sender};
     use sui::transfer_policy::{
         Self,
         TransferPolicy,
@@ -45,6 +92,14 @@ module sui::kiosk {
     use sui::coin::{Self, Coin};
     use sui::sui::SUI;
     use sui::event;
+
+    /// Allows calling `cap.kiosk()` to retrieve `for` field from `KioskOwnerCap`.
+    public use fun kiosk_owner_cap_for as KioskOwnerCap.kiosk;
+
+    // Gets access to:
+    // - `place_internal`
+    // - `lock_internal`
+    // - `uid_mut_internal`
 
     /// Trying to withdraw profits and sender is not owner.
     const ENotOwner: u64 = 0;
@@ -58,10 +113,10 @@ module sui::kiosk {
     const EListedExclusively: u64 = 4;
     /// `PurchaseCap` does not match the `Kiosk`.
     const EWrongKiosk: u64 = 5;
-    /// Tryng to exclusively list an already listed item.
+    /// Trying to exclusively list an already listed item.
     const EAlreadyListed: u64 = 6;
-    /// Trying to call `uid_mut` when extensions disabled
-    const EExtensionsDisabled: u64 = 7;
+    /// Trying to call `uid_mut` when `allow_extensions` set to false.
+    const EUidAccessNotAllowed: u64 = 7;
     /// Attempt to `take` an item that is locked.
     const EItemLocked: u64 = 8;
     /// Taking or mutably borrowing an item that is listed.
@@ -77,7 +132,7 @@ module sui::kiosk {
     /// By default gives the functionality to list an item openly - for anyone
     /// to purchase providing the guarantees for creators that every transfer
     /// needs to be approved via the `TransferPolicy`.
-    struct Kiosk has key, store {
+    public struct Kiosk has key, store {
         id: UID,
         /// Balance of the Kiosk - all profits from sales go here.
         profits: Balance<SUI>,
@@ -87,28 +142,31 @@ module sui::kiosk {
         /// Number of items stored in a Kiosk. Used to allow unpacking
         /// an empty Kiosk if it was wrapped or has a single owner.
         item_count: u32,
-        /// Whether to open the UID to public. Set to `true` by default
-        /// but the owner can switch the state if necessary.
+        /// [DEPRECATED] Please, don't use the `allow_extensions` and the matching
+        /// `set_allow_extensions` function - it is a legacy feature that is being
+        /// replaced by the `kiosk_extension` module and its Extensions API.
+        ///
+        /// Exposes `uid_mut` publicly when set to `true`, set to `false` by default.
         allow_extensions: bool
     }
 
     /// A Capability granting the bearer a right to `place` and `take` items
     /// from the `Kiosk` as well as to `list` them and `list_with_purchase_cap`.
-    struct KioskOwnerCap has key, store {
+    public struct KioskOwnerCap has key, store {
         id: UID,
-        for: ID
+        `for`: ID
     }
 
     /// A capability which locks an item and gives a permission to
     /// purchase it from a `Kiosk` for any price no less than `min_price`.
     ///
     /// Allows exclusive listing: only bearer of the `PurchaseCap` can
-    /// purchase the asset. However, the capablity should be used
+    /// purchase the asset. However, the capability should be used
     /// carefully as losing it would lock the asset in the `Kiosk`.
     ///
     /// The main application for the `PurchaseCap` is building extensions
     /// on top of the `Kiosk`.
-    struct PurchaseCap<phantom T: key + store> has key, store {
+    public struct PurchaseCap<phantom T: key + store> has key, store {
         id: UID,
         /// ID of the `Kiosk` the cap belongs to.
         kiosk_id: ID,
@@ -122,28 +180,28 @@ module sui::kiosk {
 
     /// Hot potato to ensure an item was returned after being taken using
     /// the `borrow_val` call.
-    struct Borrow { kiosk_id: ID, item_id: ID }
+    public struct Borrow { kiosk_id: ID, item_id: ID }
 
     // === Dynamic Field keys ===
 
     /// Dynamic field key for an item placed into the kiosk.
-    struct Item has store, copy, drop { id: ID }
+    public struct Item has store, copy, drop { id: ID }
 
     /// Dynamic field key for an active offer to purchase the T. If an
     /// item is listed without a `PurchaseCap`, exclusive is set to `false`.
-    struct Listing has store, copy, drop { id: ID, is_exclusive: bool }
+    public struct Listing has store, copy, drop { id: ID, is_exclusive: bool }
 
     /// Dynamic field key which marks that an item is locked in the `Kiosk` and
     /// can't be `take`n. The item then can only be listed / sold via the PurchaseCap.
     /// Lock is released on `purchase`.
-    struct Lock has store, copy, drop { id: ID }
+    public struct Lock has store, copy, drop { id: ID }
 
     // === Events ===
 
     /// Emitted when an item was listed by the safe owner. Can be used
     /// to track available offers anywhere on the network; the event is
     /// type-indexed which allows for searching for offers of a specific `T`
-    struct ItemListed<phantom T: key + store> has copy, drop {
+    public struct ItemListed<phantom T: key + store> has copy, drop {
         kiosk: ID,
         id: ID,
         price: u64
@@ -158,7 +216,7 @@ module sui::kiosk {
     /// in the `ItemListed` event. This is because the `PurchaseCap` only
     /// sets a minimum price for the item, and the actual price is defined
     /// by the trading module / extension.
-    struct ItemPurchased<phantom T: key + store> has copy, drop {
+    public struct ItemPurchased<phantom T: key + store> has copy, drop {
         kiosk: ID,
         id: ID,
         price: u64
@@ -166,18 +224,19 @@ module sui::kiosk {
 
     /// Emitted when an item was delisted by the safe owner. Can be used
     /// to close tracked offers.
-    struct ItemDelisted<phantom T: key + store> has copy, drop {
+    public struct ItemDelisted<phantom T: key + store> has copy, drop {
         kiosk: ID,
         id: ID
     }
 
     // === Kiosk packing and unpacking ===
 
+    #[allow(lint(self_transfer, share_owned))]
     /// Creates a new Kiosk in a default configuration: sender receives the
     /// `KioskOwnerCap` and becomes the Owner, the `Kiosk` is shared.
     entry fun default(ctx: &mut TxContext) {
         let (kiosk, cap) = new(ctx);
-        sui::transfer::transfer(cap, sender(ctx));
+        sui::transfer::transfer(cap, ctx.sender());
         sui::transfer::share_object(kiosk);
     }
 
@@ -186,14 +245,14 @@ module sui::kiosk {
         let kiosk = Kiosk {
             id: object::new(ctx),
             profits: balance::zero(),
-            owner: sender(ctx),
+            owner: ctx.sender(),
             item_count: 0,
-            allow_extensions: true
+            allow_extensions: false
         };
 
         let cap = KioskOwnerCap {
             id: object::new(ctx),
-            for: object::id(&kiosk)
+            `for`: object::id(&kiosk)
         };
 
         (kiosk, cap)
@@ -206,15 +265,15 @@ module sui::kiosk {
         self: Kiosk, cap: KioskOwnerCap, ctx: &mut TxContext
     ): Coin<SUI> {
         let Kiosk { id, profits, owner: _, item_count, allow_extensions: _ } = self;
-        let KioskOwnerCap { id: cap_id, for } = cap;
+        let KioskOwnerCap { id: cap_id, `for` } = cap;
 
-        assert!(object::uid_to_inner(&id) == for, ENotOwner);
+        assert!(id.to_inner() == `for`, ENotOwner);
         assert!(item_count == 0, ENotEmpty);
 
-        object::delete(cap_id);
-        object::delete(id);
+        cap_id.delete();
+        id.delete();
 
-        coin::from_balance(profits, ctx)
+        profits.into_coin(ctx)
     }
 
     /// Change the `owner` field to the transaction sender.
@@ -224,8 +283,8 @@ module sui::kiosk {
     public fun set_owner(
         self: &mut Kiosk, cap: &KioskOwnerCap, ctx: &TxContext
     ) {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        self.owner = sender(ctx);
+        assert!(self.has_access(cap), ENotOwner);
+        self.owner = ctx.sender();
     }
 
     /// Update the `owner` field with a custom address. Can be used for
@@ -233,7 +292,7 @@ module sui::kiosk {
     public fun set_owner_custom(
         self: &mut Kiosk, cap: &KioskOwnerCap, owner: address
     ) {
-        assert!(object::id(self) == cap.for, ENotOwner);
+        assert!(self.has_access(cap), ENotOwner);
         self.owner = owner
     }
 
@@ -244,9 +303,8 @@ module sui::kiosk {
     public fun place<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, item: T
     ) {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        self.item_count = self.item_count + 1;
-        dof::add(&mut self.id, Item { id: object::id(&item) }, item)
+        assert!(self.has_access(cap), ENotOwner);
+        self.place_internal(item)
     }
 
     /// Place an item to the `Kiosk` and issue a `Lock` for it. Once placed this
@@ -258,8 +316,8 @@ module sui::kiosk {
     public fun lock<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, _policy: &TransferPolicy<T>, item: T
     ) {
-        df::add(&mut self.id, Lock { id: object::id(&item) }, true);
-        place(self, cap, item)
+        assert!(self.has_access(cap), ENotOwner);
+        self.lock_internal(item)
     }
 
     /// Take any object from the Kiosk.
@@ -267,10 +325,10 @@ module sui::kiosk {
     public fun take<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID
     ): T {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(!is_locked(self, id), EItemLocked);
-        assert!(!is_listed_exclusively(self, id), EListedExclusively);
-        assert!(has_item(self, id), EItemNotFound);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(!self.is_locked(id), EItemLocked);
+        assert!(!self.is_listed_exclusively(id), EListedExclusively);
+        assert!(self.has_item(id), EItemNotFound);
 
         self.item_count = self.item_count - 1;
         df::remove_if_exists<Listing, u64>(&mut self.id, Listing { id, is_exclusive: false });
@@ -284,9 +342,9 @@ module sui::kiosk {
     public fun list<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID, price: u64
     ) {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item_with_type<T>(self, id), EItemNotFound);
-        assert!(!is_listed_exclusively(self, id), EListedExclusively);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(self.has_item_with_type<T>(id), EItemNotFound);
+        assert!(!self.is_listed_exclusively(id), EListedExclusively);
 
         df::add(&mut self.id, Listing { id, is_exclusive: false }, price);
         event::emit(ItemListed<T> { kiosk: object::id(self), id, price })
@@ -297,8 +355,8 @@ module sui::kiosk {
         self: &mut Kiosk, cap: &KioskOwnerCap, item: T, price: u64
     ) {
         let id = object::id(&item);
-        place(self, cap, item);
-        list<T>(self, cap, id, price)
+        self.place(cap, item);
+        self.list<T>(cap, id, price)
     }
 
     /// Remove an existing listing from the `Kiosk` and keep the item in the
@@ -306,10 +364,10 @@ module sui::kiosk {
     public fun delist<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID
     ) {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item_with_type<T>(self, id), EItemNotFound);
-        assert!(!is_listed_exclusively(self, id), EListedExclusively);
-        assert!(is_listed(self, id), ENotListed);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(self.has_item_with_type<T>(id), EItemNotFound);
+        assert!(!self.is_listed_exclusively(id), EListedExclusively);
+        assert!(self.is_listed(id), ENotListed);
 
         df::remove<Listing, u64>(&mut self.id, Listing { id, is_exclusive: false });
         event::emit(ItemDelisted<T> { kiosk: object::id(self), id })
@@ -329,9 +387,9 @@ module sui::kiosk {
         let inner = dof::remove<Item, T>(&mut self.id, Item { id });
 
         self.item_count = self.item_count - 1;
-        assert!(price == coin::value(&payment), EIncorrectAmount);
-        coin::put(&mut self.profits, payment);
+        assert!(price == payment.value(), EIncorrectAmount);
         df::remove_if_exists<Lock, bool>(&mut self.id, Lock { id });
+        coin::put(&mut self.profits, payment);
 
         event::emit(ItemPurchased<T> { kiosk: object::id(self), id, price });
 
@@ -345,18 +403,17 @@ module sui::kiosk {
     public fun list_with_purchase_cap<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID, min_price: u64, ctx: &mut TxContext
     ): PurchaseCap<T> {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item_with_type<T>(self, id), EItemNotFound);
-        assert!(!is_listed(self, id), EAlreadyListed);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(self.has_item_with_type<T>(id), EItemNotFound);
+        assert!(!self.is_listed(id), EAlreadyListed);
 
-        let uid = object::new(ctx);
         df::add(&mut self.id, Listing { id, is_exclusive: true }, min_price);
 
         PurchaseCap<T> {
-            id: uid,
-            item_id: id,
-            kiosk_id: cap.for,
             min_price,
+            item_id: id,
+            id: object::new(ctx),
+            kiosk_id: object::id(self),
         }
     }
 
@@ -366,10 +423,10 @@ module sui::kiosk {
         self: &mut Kiosk, purchase_cap: PurchaseCap<T>, payment: Coin<SUI>
     ): (T, TransferRequest<T>) {
         let PurchaseCap { id, item_id, kiosk_id, min_price } = purchase_cap;
-        object::delete(id);
+        id.delete();
 
         let id = item_id;
-        let paid = coin::value(&payment);
+        let paid = payment.value();
         assert!(paid >= min_price, EIncorrectAmount);
         assert!(object::id(self) == kiosk_id, EWrongKiosk);
 
@@ -392,24 +449,43 @@ module sui::kiosk {
 
         assert!(object::id(self) == kiosk_id, EWrongKiosk);
         df::remove<Listing, u64>(&mut self.id, Listing { id: item_id, is_exclusive: true });
-        object::delete(id)
+        id.delete()
     }
 
     /// Withdraw profits from the Kiosk.
     public fun withdraw(
         self: &mut Kiosk, cap: &KioskOwnerCap, amount: Option<u64>, ctx: &mut TxContext
     ): Coin<SUI> {
-        assert!(object::id(self) == cap.for, ENotOwner);
+        assert!(self.has_access(cap), ENotOwner);
 
-        let amount = if (option::is_some(&amount)) {
-            let amt = option::destroy_some(amount);
-            assert!(amt <= balance::value(&self.profits), ENotEnough);
+        let amount = if (amount.is_some()) {
+            let amt = amount.destroy_some();
+            assert!(amt <= self.profits.value(), ENotEnough);
             amt
         } else {
-            balance::value(&self.profits)
+            self.profits.value()
         };
 
         coin::take(&mut self.profits, amount, ctx)
+    }
+
+    // === Internal Core ===
+
+    /// Internal: "lock" an item disabling the `take` action.
+    public(package) fun lock_internal<T: key + store>(self: &mut Kiosk, item: T) {
+        df::add(&mut self.id, Lock { id: object::id(&item) }, true);
+        self.place_internal(item)
+    }
+
+    /// Internal: "place" an item to the Kiosk and increment the item count.
+    public(package) fun place_internal<T: key + store>(self: &mut Kiosk, item: T) {
+        self.item_count = self.item_count + 1;
+        dof::add(&mut self.id, Item { id: object::id(&item) }, item)
+    }
+
+    /// Internal: get a mutable access to the UID.
+    public(package) fun uid_mut_internal(self: &mut Kiosk): &mut UID {
+        &mut self.id
     }
 
     // === Kiosk fields access ===
@@ -434,7 +510,7 @@ module sui::kiosk {
     /// Check whether an `item` is listed (exclusively or non exclusively).
     public fun is_listed(self: &Kiosk, id: ID): bool {
         df::exists_(&self.id, Listing { id, is_exclusive: false })
-        || is_listed_exclusively(self, id)
+        || self.is_listed_exclusively(id)
     }
 
     /// Check whether there's a `PurchaseCap` issued for an item.
@@ -444,35 +520,40 @@ module sui::kiosk {
 
     /// Check whether the `KioskOwnerCap` matches the `Kiosk`.
     public fun has_access(self: &mut Kiosk, cap: &KioskOwnerCap): bool {
-        object::id(self) == cap.for
+        object::id(self) == cap.`for`
     }
 
     /// Access the `UID` using the `KioskOwnerCap`.
-    public fun uid_mut_as_owner(self: &mut Kiosk, cap: &KioskOwnerCap): &mut UID {
-        assert!(object::id(self) == cap.for, ENotOwner);
+    public fun uid_mut_as_owner(
+        self: &mut Kiosk, cap: &KioskOwnerCap
+    ): &mut UID {
+        assert!(self.has_access(cap), ENotOwner);
         &mut self.id
     }
 
-    /// Allow or disallow `uid` and `uid_mut` access via the `allow_extensions` setting.
-    public fun set_allow_extensions(self: &mut Kiosk, cap: &KioskOwnerCap, allow_extensions: bool) {
-        assert!(object::id(self) == cap.for, ENotOwner);
+    /// [DEPRECATED]
+    /// Allow or disallow `uid` and `uid_mut` access via the `allow_extensions`
+    /// setting.
+    public fun set_allow_extensions(
+        self: &mut Kiosk, cap: &KioskOwnerCap, allow_extensions: bool
+    ) {
+        assert!(self.has_access(cap), ENotOwner);
         self.allow_extensions = allow_extensions;
     }
 
     /// Get the immutable `UID` for dynamic field access.
-    /// Aborts if `allow_extensions` set to `false`.
+    /// Always enabled.
     ///
     /// Given the &UID can be used for reading keys and authorization,
     /// its access
     public fun uid(self: &Kiosk): &UID {
-        assert!(self.allow_extensions, EExtensionsDisabled);
         &self.id
     }
 
     /// Get the mutable `UID` for dynamic field access and extensions.
     /// Aborts if `allow_extensions` set to `false`.
     public fun uid_mut(self: &mut Kiosk): &mut UID {
-        assert!(self.allow_extensions, EExtensionsDisabled);
+        assert!(self.allow_extensions, EUidAccessNotAllowed);
         &mut self.id
     }
 
@@ -488,36 +569,38 @@ module sui::kiosk {
 
     /// Get the amount of profits collected by selling items.
     public fun profits_amount(self: &Kiosk): u64 {
-        balance::value(&self.profits)
+        self.profits.value()
     }
 
-    /// Get mutable access to `profits` - useful for extendability.
+    /// Get mutable access to `profits` - owner only action.
     public fun profits_mut(self: &mut Kiosk, cap: &KioskOwnerCap): &mut Balance<SUI> {
-        assert!(object::id(self) == cap.for, ENotOwner);
+        assert!(self.has_access(cap), ENotOwner);
         &mut self.profits
     }
 
     // === Item borrowing ===
 
+    #[syntax(index)]
     /// Immutably borrow an item from the `Kiosk`. Any item can be `borrow`ed
     /// at any time.
     public fun borrow<T: key + store>(
         self: &Kiosk, cap: &KioskOwnerCap, id: ID
     ): &T {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item(self, id), EItemNotFound);
+        assert!(object::id(self) == cap.`for`, ENotOwner);
+        assert!(self.has_item(id), EItemNotFound);
 
         dof::borrow(&self.id, Item { id })
     }
 
+    #[syntax(index)]
     /// Mutably borrow an item from the `Kiosk`.
     /// Item can be `borrow_mut`ed only if it's not `is_listed`.
     public fun borrow_mut<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID
     ): &mut T {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item(self, id), EItemNotFound);
-        assert!(!is_listed(self, id), EItemIsListed);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(self.has_item(id), EItemNotFound);
+        assert!(!self.is_listed(id), EItemIsListed);
 
         dof::borrow_mut(&mut self.id, Item { id })
     }
@@ -527,9 +610,9 @@ module sui::kiosk {
     public fun borrow_val<T: key + store>(
         self: &mut Kiosk, cap: &KioskOwnerCap, id: ID
     ): (T, Borrow) {
-        assert!(object::id(self) == cap.for, ENotOwner);
-        assert!(has_item(self, id), EItemNotFound);
-        assert!(!is_listed(self, id), EItemIsListed);
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(self.has_item(id), EItemNotFound);
+        assert!(!self.is_listed(id), EItemIsListed);
 
         (
             dof::remove(&mut self.id, Item { id }),
@@ -548,6 +631,13 @@ module sui::kiosk {
         assert!(object::id(&item) == item_id, EItemMismatch);
 
         dof::add(&mut self.id, Item { id: item_id }, item);
+    }
+
+    // === KioskOwnerCap fields access ===
+
+    /// Get the `for` field of the `KioskOwnerCap`.
+    public fun kiosk_owner_cap_for(cap: &KioskOwnerCap): ID {
+        cap.`for`
     }
 
     // === PurchaseCap fields access ===

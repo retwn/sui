@@ -46,7 +46,6 @@ impl<V: TransactionValidator> WorkerToWorker for WorkerReceiverHandler<V> {
         if let Err(err) = self
             .validator
             .validate_batch(&message.batch, &self.protocol_config)
-            .await
         {
             return Err(anemo::rpc::Status::new_with_message(
                 StatusCode::BadRequest,
@@ -57,11 +56,8 @@ impl<V: TransactionValidator> WorkerToWorker for WorkerReceiverHandler<V> {
 
         let mut batch = message.batch.clone();
 
-        // TODO: Remove once we have upgraded to protocol version 12.
-        if self.protocol_config.narwhal_versioned_metadata() {
-            // Set received_at timestamp for remote batch.
-            batch.versioned_metadata_mut().set_received_at(now());
-        }
+        // Set received_at timestamp for remote batch.
+        batch.versioned_metadata_mut().set_received_at(now());
         self.store.insert(&digest, &batch).map_err(|e| {
             anemo::rpc::Status::internal(format!("failed to write to batch store: {e:?}"))
         })?;
@@ -209,22 +205,10 @@ impl<V: TransactionValidator> PrimaryToWorker for PrimaryReceiverHandler<V> {
             )
             .await?
             .into_inner();
-        for batch in response.batches.iter_mut() {
-            if !message.is_certified {
-                // This batch is not part of a certificate, so we need to validate it.
-                if let Err(err) = self
-                    .validator
-                    .validate_batch(batch, &self.protocol_config)
-                    .await
-                {
-                    return Err(anemo::rpc::Status::new_with_message(
-                        StatusCode::BadRequest,
-                        format!("Invalid batch: {err}"),
-                    ));
-                }
-            }
 
-            // TODO: Remove once we have upgraded to protocol version 12.
+        let mut write_batch = self.store.batch();
+        for batch in response.batches.iter_mut() {
+            // TODO: Remove once we have removed BatchV1 from the codebase.
             validate_batch_version(batch, &self.protocol_config).map_err(|err| {
                 anemo::rpc::Status::new_with_message(
                     StatusCode::BadRequest,
@@ -232,18 +216,32 @@ impl<V: TransactionValidator> PrimaryToWorker for PrimaryReceiverHandler<V> {
                 )
             })?;
 
+            if !message.is_certified {
+                // This batch is not part of a certificate, so we need to validate it.
+                if let Err(err) = self.validator.validate_batch(batch, &self.protocol_config) {
+                    return Err(anemo::rpc::Status::new_with_message(
+                        StatusCode::BadRequest,
+                        format!("Invalid batch: {err}"),
+                    ));
+                }
+            }
+
             let digest = batch.digest();
             if missing.remove(&digest) {
-                // TODO: Remove once we have upgraded to protocol version 12.
-                if self.protocol_config.narwhal_versioned_metadata() {
-                    // Set received_at timestamp for remote batch.
-                    batch.versioned_metadata_mut().set_received_at(now());
-                }
-                self.store.insert(&digest, batch).map_err(|e| {
-                    anemo::rpc::Status::internal(format!("failed to write to batch store: {e:?}"))
-                })?;
+                // Set received_at timestamp for remote batch.
+                batch.versioned_metadata_mut().set_received_at(now());
+                write_batch
+                    .insert_batch(&self.store, [(digest, batch)])
+                    .map_err(|e| {
+                        anemo::rpc::Status::internal(format!(
+                            "failed to batch transaction to commit: {e:?}"
+                        ))
+                    })?;
             }
         }
+        write_batch.write().map_err(|e| {
+            anemo::rpc::Status::internal(format!("failed to commit to batch store: {e:?}"))
+        })?;
 
         if missing.is_empty() {
             return Ok(anemo::Response::new(()));

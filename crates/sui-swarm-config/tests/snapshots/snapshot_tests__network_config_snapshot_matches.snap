@@ -14,19 +14,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -43,18 +43,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -70,13 +73,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -85,6 +90,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
     worker-key-pair:
@@ -96,19 +151,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -125,18 +180,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -152,13 +210,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -167,6 +227,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
     worker-key-pair:
@@ -178,19 +288,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -207,18 +317,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -234,13 +347,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -249,6 +364,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
     worker-key-pair:
@@ -260,19 +425,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -289,18 +454,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -316,13 +484,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -331,6 +501,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
     worker-key-pair:
@@ -342,19 +562,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -371,18 +591,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -398,13 +621,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -413,6 +638,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
     worker-key-pair:
@@ -424,19 +699,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -453,18 +728,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -480,13 +758,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -495,6 +775,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
   - protocol-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
     worker-key-pair:
@@ -506,19 +836,19 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
+    enable-experimental-rest-api: true
     metrics-address: "0.0.0.0:1"
     admin-interface-port: 8888
     consensus-config:
-      address: ""
       db-path: /tmp/foo/
-      internal-worker-address: ""
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
+      address: ""
       narwhal-config:
         header_num_of_batches_threshold: 32
         max_header_num_of_batches: 1000
-        max_header_delay: 2000ms
+        max_header_delay: 1000ms
         min_header_delay: 500ms
         gc_depth: 50
         sync_retry_delay: 5000ms
@@ -535,18 +865,21 @@ validator_configs:
           send_certificate_rate_limit: ~
           report_batch_rate_limit: ~
           request_batches_rate_limit: ~
-    enable-event-processing: false
+      parameters: ~
     enable-index-processing: true
+    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
       listen-address: "0.0.0.0:1"
+      state-sync:
+        checkpoint-content-timeout-ms: 10000
     genesis:
       genesis: "[fake genesis]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       epoch-db-pruning-period-secs: 3600
-      num-epochs-to-retain: 2
+      num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
@@ -562,13 +895,15 @@ validator_configs:
       force-disable-epoch-sui-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-move-vm-paranoid-checks: false
       enable-secondary-index-checks: false
     transaction-deny-config:
-      package_publish_disabled: false
-      package_upgrade_disabled: false
-      shared_object_disabled: false
-      user_transaction_disabled: false
+      package-publish-disabled: false
+      package-upgrade-disabled: false
+      shared-object-disabled: false
+      user-transaction-disabled: false
+      receiving-objects-disabled: false
+      zklogin-sig-disabled: false
+      zklogin-disabled-providers: []
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -577,6 +912,56 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
+    indexer-max-subscriptions: ~
+    transaction-kv-store-read-config:
+      base-url: ""
+    jwk-fetch-interval-seconds: 3600
+    zklogin-oauth-providers:
+      Mainnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Testnet:
+        - Apple
+        - Facebook
+        - Google
+        - Twitch
+      Unknown:
+        - Apple
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_LPSLCkC3A"
+        - "AwsTenant-region:us-east-1-tenant_id:us-east-1_qPsZxYqd8"
+        - Credenza3
+        - Facebook
+        - Google
+        - Kakao
+        - KarrierOne
+        - Microsoft
+        - Slack
+        - TestIssuer
+        - Twitch
+    authority-overload-config:
+      max-txn-age-in-queue:
+        secs: 1
+        nanos: 0
+      overload-monitor-interval:
+        secs: 10
+        nanos: 0
+      execution-queue-latency-soft-limit:
+        secs: 1
+        nanos: 0
+      execution-queue-latency-hard-limit:
+        secs: 10
+        nanos: 0
+      max-load-shedding-percentage: 95
+      min-load-shedding-percentage-above-hard-limit: 50
+      safe-transaction-ready-rate: 100
+      check-system-overload-at-signing: true
+      max-transaction-manager-queue-length: 100000
+      max-transaction-manager-per-object-queue-length: 100
+    execution-cache: passthrough-cache
+    enable-soft-bundle: true
+    enable-validator-tx-finalizer: true
 account_keys:
   - Hloy4pnf8pWEHGP+4OFsXz56bLdIJhkD2O+OdKMqCA4=
   - pvMScjoMR/DaN0M5IOxS2VpGC59N6kv6gDm63ufLQ5w=

@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { toB64 } from '@mysten/bcs';
-import { IntentScope, messageWithIntent } from './intent.js';
 import { blake2b } from '@noble/hashes/blake2b';
-import { bcs } from '../types/sui-bcs.js';
-import type { SerializedSignature } from './index.js';
-import { SUI_ADDRESS_LENGTH, normalizeSuiAddress } from '../utils/sui-types.js';
 import { bytesToHex } from '@noble/hashes/utils';
+
+import { bcs } from '../bcs/index.js';
+import { normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../utils/sui-types.js';
+import type { IntentScope } from './intent.js';
+import { messageWithIntent } from './intent.js';
 
 /**
  * Value to be converted into public key.
@@ -47,13 +48,10 @@ export abstract class PublicKey {
 		return toB64(this.toRawBytes());
 	}
 
-	/**
-	 * @deprecated use toBase64 instead.
-	 *
-	 * Return the base-64 representation of the public key
-	 */
-	toString() {
-		return this.toBase64();
+	toString(): never {
+		throw new Error(
+			'`toString` is not implemented on public keys. Use `toBase64()` or `toRawBytes()` instead.',
+		);
 	}
 
 	/**
@@ -68,7 +66,7 @@ export abstract class PublicKey {
 
 	verifyWithIntent(
 		bytes: Uint8Array,
-		signature: Uint8Array | SerializedSignature,
+		signature: Uint8Array | string,
 		intent: IntentScope,
 	): Promise<boolean> {
 		const intentMessage = messageWithIntent(intent, bytes);
@@ -80,25 +78,19 @@ export abstract class PublicKey {
 	/**
 	 * Verifies that the signature is valid for for the provided PersonalMessage
 	 */
-	verifyPersonalMessage(
-		message: Uint8Array,
-		signature: Uint8Array | SerializedSignature,
-	): Promise<boolean> {
+	verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
 		return this.verifyWithIntent(
-			bcs.ser(['vector', 'u8'], message).toBytes(),
+			bcs.vector(bcs.u8()).serialize(message).toBytes(),
 			signature,
-			IntentScope.PersonalMessage,
+			'PersonalMessage',
 		);
 	}
 
 	/**
-	 * Verifies that the signature is valid for for the provided TransactionBlock
+	 * Verifies that the signature is valid for for the provided Transaction
 	 */
-	verifyTransactionBlock(
-		transactionBlock: Uint8Array,
-		signature: Uint8Array | SerializedSignature,
-	): Promise<boolean> {
-		return this.verifyWithIntent(transactionBlock, signature, IntentScope.TransactionData);
+	verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+		return this.verifyWithIntent(transaction, signature, 'TransactionData');
 	}
 
 	/**
@@ -112,13 +104,6 @@ export abstract class PublicKey {
 		suiBytes.set(rawBytes, 1);
 
 		return suiBytes;
-	}
-
-	/**
-	 * @deprecated use `toRawBytes` instead.
-	 */
-	toBytes() {
-		return this.toRawBytes();
 	}
 
 	/**
@@ -144,5 +129,5 @@ export abstract class PublicKey {
 	/**
 	 * Verifies that the signature is valid for for the provided message
 	 */
-	abstract verify(data: Uint8Array, signature: Uint8Array | SerializedSignature): Promise<boolean>;
+	abstract verify(data: Uint8Array, signature: Uint8Array | string): Promise<boolean>;
 }
